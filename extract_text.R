@@ -6,6 +6,7 @@ library(stringr)
 library(pdftools)
 library(here)
 
+##Changed api key to a source file to upload it to github
 source('lit_api_key.R')
 
 # Function to extract citation from a paper (assumes PDF parsing to extract APA citation)
@@ -26,42 +27,79 @@ extract_citation <- function(file_path) {
 # Function to send file text to OpenAI and extract responses
 send_paper_to_openai <- function(file_text) {
   # API URL and headers
-  url <- "https://api.openai.com/v1/engines/gpt-4/completions"
-  headers <- add_headers(
-    `Content-Type` = "application/json",
-    `Authorization` = paste("Bearer", api_key)
-  )
+  ##Edited url to point to generic endpoint, model specified in payload parameters
+  url <- 'https://api.openai.com/v1/chat/completions'
+  #url <- "https://api.openai.com/v1/engines/gpt-4/completions"
+  ##removed headers here and added them below
   
-  # Prompt with specific questions
-  prompt <- paste(
-    "Please analyze the following paper and provide the answers in this format:\n",
-    "Q1: Is one of the IV specifications overidentified?\n",
+  
+  ##Split prompt into system prompt and user prompt. 
+  ##Also includes prompting for JSON format
+  system_prompt <- paste(
+    "You will be provided with a paper that has been published in an academic finance journal.",##Added
+    "You are responsible to analyze the paper, and answer questions asked about it.",##minor edits
+    "The following is the JSON format that should be used for the respective questions.\n",##Added this line
+    "{Q1: Yes/No, Q2: Yes/No, Q3: Yes/No, Q4: Yes/No, Q5: Yes/No, Q6: Yes/No, Q7: Yes/No}", ##and this line
+    "Please analyze the following paper and provide answers to the following questions:\n",
+    "Q1: Is one of the IV specifications overidentified?)\n",
     "Q2: Do the authors report the 2SLS coefficient with just identified models?\n",
     "Q3: Do the authors include an assortment of control variables in the system of equations?\n",
     "Q4: Do the authors present results with increasing numbers of control variables?\n",
     "Q5: Do the authors present results without any control variables?\n",
     "Q6: Is the exclusion condition discussed?\n",
-    "Q7: Do the authors consider the possibility that the control variables themselves may be endogenous?\n",
-    "The text of the paper follows:\n", 
-    file_text
+    "Q7: Do the authors consider the possibility that the control variables themselves may be endogenous?\n"
+  )
+  # 
+  # # Prompt with specific questions
+  # prompt <- paste(
+  #   "Please analyze the following paper and provide the answers in the following JSON format:\n",
+  #   "Q1: Is one of the IV specifications overidentified? (Yes/No)\n",
+  #   "Q2: Do the authors report the 2SLS coefficient with just identified models? (Yes/No)\n",
+  #   "Q3: Do the authors include an assortment of control variables in the system of equations?\n",
+  #   "Q4: Do the authors present results with increasing numbers of control variables?\n",
+  #   "Q5: Do the authors present results without any control variables?\n",
+  #   "Q6: Is the exclusion condition discussed?\n",
+  #   "Q7: Do the authors consider the possibility that the control variables themselves may be endogenous?\n",
+  #   "The text of the paper follows:\n", 
+  #   file_text
+  # )
+
+  
+  ###Edited Payload structure to allow for difference in System prompts and User prompts
+  ## as well as include json structuring
+  ## kept max_completion benchmark and temperature of .5
+  payload <- list(
+    model = 'gpt-4o',
+    temperature = .5,
+    max_completion_tokens = 1500,
+    n = 1,
+    response_format = list(
+      type = 'json_object'
+    ),
+    messages = list(
+      list(role = 'system', content = system_prompt),
+      list(role = 'user', content = file_text)
+    )
   )
   
-  # Payload
-  payload <- list(
-    model = "gpt-4",
-    prompt = prompt,
-    max_tokens = 1500,
-    temperature = 0.5
-  )
   
   # Send POST request
-  response <- POST(url, headers, body = toJSON(payload))
+  response <- POST(url, 
+                   body = toJSON(payload, auto_unbox = TRUE), 
+                   add_headers(
+    `Content-Type` = "application/json",
+    `Authorization` = paste("Bearer", api_key)
+    ), 
+    content_type_json())
   
   # Parse the response
   result <- fromJSON(content(response, as = "text"))
   
   # Return the answer text
-  return(result$choices[[1]]$text)
+  #return(result$choices[[1]]$text)
+  
+  ##return response for testing
+  return(response)
 }
 
 # Function to analyze a collection of papers in a folder
