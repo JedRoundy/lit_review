@@ -40,7 +40,7 @@ send_paper_to_openai <- function(file_text) {
     "You are responsible to analyze the paper, and answer questions asked about it.",##minor edits
     "The following is the JSON format that should be used for the respective questions.\n",##Added this line
     "Yes/True will be represented by 1, and No/False will be represented by 0\n",##Added this line
-    "{Q1: 1/0, Q2: 1/0, Q3: 1/0, Q4: 1/0, Q5: 1/0, Q6: 1/0, Q7: 1/0}", ##and this line
+    "{Q1: 1/0, Q2: 1/0, Q3: 1/0, Q4: 1/0, Q5: 1/0, Q6: 1/0, Q7: 1/0}", ##added this line
     "Please analyze the following paper and provide answers to the following questions:\n",
     "Q1: Is one of the IV specifications overidentified?)\n",
     "Q2: Do the authors report the 2SLS coefficient with just identified models?\n",
@@ -50,20 +50,7 @@ send_paper_to_openai <- function(file_text) {
     "Q6: Is the exclusion condition discussed?\n",
     "Q7: Do the authors consider the possibility that the control variables themselves may be endogenous?\n"
   )
-  # 
-  # # Prompt with specific questions
-  # prompt <- paste(
-  #   "Please analyze the following paper and provide the answers in the following JSON format:\n",
-  #   "Q1: Is one of the IV specifications overidentified? (Yes/No)\n",
-  #   "Q2: Do the authors report the 2SLS coefficient with just identified models? (Yes/No)\n",
-  #   "Q3: Do the authors include an assortment of control variables in the system of equations?\n",
-  #   "Q4: Do the authors present results with increasing numbers of control variables?\n",
-  #   "Q5: Do the authors present results without any control variables?\n",
-  #   "Q6: Is the exclusion condition discussed?\n",
-  #   "Q7: Do the authors consider the possibility that the control variables themselves may be endogenous?\n",
-  #   "The text of the paper follows:\n", 
-  #   file_text
-  # )
+
 
   
   ##Edited Payload structure to allow for difference in System prompts and User prompts
@@ -133,7 +120,7 @@ analyze_papers <- function(folder_path) {
     
     ## REMOVED - START HERE -- file_text is a list -- why is 5000 characters a cutoff?
     ## Pattern to remove "Downloaded from.... Creative Commons License" from each page. 
-    pattern_to_remove <- "^.*Creative Commons License"
+    pattern_to_remove <- ".{315}Creative Commons License"
     
     ##Replace all occurrences in given list of strings
     file_text_stripped <- lapply(file_text, function(x) str_replace_all(x, pattern = pattern_to_remove, ""))
