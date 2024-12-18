@@ -39,7 +39,8 @@ send_paper_to_openai <- function(file_text) {
     "You will be provided with a paper that has been published in an academic finance journal.",##Added
     "You are responsible to analyze the paper, and answer questions asked about it.",##minor edits
     "The following is the JSON format that should be used for the respective questions.\n",##Added this line
-    "{Q1: Yes/No, Q2: Yes/No, Q3: Yes/No, Q4: Yes/No, Q5: Yes/No, Q6: Yes/No, Q7: Yes/No}", ##and this line
+    "Yes/True will be represented by 1, and No/False will be represented by 0\n",##Added this line
+    "{Q1: 1/0, Q2: 1/0, Q3: 1/0, Q4: 1/0, Q5: 1/0, Q6: 1/0, Q7: 1/0}", ##and this line
     "Please analyze the following paper and provide answers to the following questions:\n",
     "Q1: Is one of the IV specifications overidentified?)\n",
     "Q2: Do the authors report the 2SLS coefficient with just identified models?\n",
@@ -65,7 +66,7 @@ send_paper_to_openai <- function(file_text) {
   # )
 
   
-  ###Edited Payload structure to allow for difference in System prompts and User prompts
+  ##Edited Payload structure to allow for difference in System prompts and User prompts
   ## as well as include json structuring
   ## kept max_completion benchmark and temperature of .5
   payload <- list(
@@ -82,7 +83,8 @@ send_paper_to_openai <- function(file_text) {
     )
   )
   
-  
+  ##edited this, primarily using add_headers within function instead of assigning headers and then referencing object
+  ## for some reason, it doesn't like to reference the object (have experienced this everywhere else)
   # Send POST request
   response <- POST(url, 
                    body = toJSON(payload, auto_unbox = TRUE), 
@@ -92,35 +94,31 @@ send_paper_to_openai <- function(file_text) {
     ), 
     content_type_json())
   
-  # Parse the response
-  result <- fromJSON(content(response, as = "text"))
+  ## Use as = 'parsed' function instead of as= 'text'
+  ## doing this removes fromJSON() outside func
+  response <- content(response, as = 'parsed')
   
-  # Return the answer text
-  #return(result$choices[[1]]$text)
+  ##parses the remaining path to the response, and parses the API JSON reponse
+  content_list <- fromJSON(response$choices[[1]]$message$content)
   
   ##return response for testing
-  return(response)
+  return(content_list)
 }
+
 
 # Function to analyze a collection of papers in a folder
 analyze_papers <- function(folder_path) {
   # Create an empty dataframe to store results
+  ## edited this to reflect simplified JSON response from API
   results <- tibble(
     Paper = character(),
-    Is_IV_overidentified = character(),
-    Binary_IV_overidentified = integer(),
-    Report_2SLS_Just_Identified = character(),
-    Binary_2SLS_Just_Identified = integer(),
-    Assortment_of_Controls = character(),
-    Binary_Assortment_of_Controls = integer(),
-    Increasing_Controls = character(),
-    Binary_Increasing_Controls = integer(),
-    Without_Controls = character(),
-    Binary_Without_Controls = integer(),
-    Exclusion_Condition_Discussed = character(),
-    Binary_Exclusion_Condition = integer(),
-    Endogeneity_of_Controls = character(),
-    Binary_Endogeneity_of_Controls = integer()
+    Is_IV_overidentified = integer(),
+    Report_2SLS_Just_Identified = integer(),
+    Assortment_of_Controls = integer(),
+    Increasing_Controls = integer(),
+    Without_Controls = integer(),
+    Exclusion_Condition_Discussed = integer(),
+    Endogeneity_of_Controls = integer(),
   )
   
   # Loop over each file in the folder
@@ -133,42 +131,42 @@ analyze_papers <- function(folder_path) {
     # Extract the text from the PDF file
     file_text <- pdf_text(file)
     
-    ## START HERE -- file_text is a list -- why is 5000 characters a cutoff?
+    ## REMOVED - START HERE -- file_text is a list -- why is 5000 characters a cutoff?
+    ## Pattern to remove "Downloaded from.... Creative Commons License" from each page. 
+    pattern_to_remove <- "^.*Creative Commons License"
     
-    # If the paper is too long, take only the first part (for API token limits)
-    if (nchar(file_text) > 5000) {
-      file_text <- substr(file_text, 1, 5000)
-    }
+    ##Replace all occurrences in given list of strings
+    file_text_stripped <- lapply(file_text, function(x) str_replace_all(x, pattern = pattern_to_remove, ""))
+    
+    ##REMOVED -  If the paper is too long, take only the first part (for API token limits)
+    
+    
+    ##Append all the text together
+    appended_file_text <- paste(file_text_stripped, collapse = '')
+    
     
     # Send the extracted text to OpenAI for analysis
-    analysis <- send_paper_to_openai(file_text)
+    ##edited slightly to reflect correct object reference
+    analysis <- send_paper_to_openai(appended_file_text)
     
-    # Parse the OpenAI response based on question labels (Q1, Q2, etc.)
-    split_analysis <- str_split(analysis, "Q[0-9]:")[[1]]
+    ## REMOVED - Parse the OpenAI response based on question labels (Q1, Q2, etc.)
+    ## After converting to JSON outputs, object returned is now a list
     
-    # Ensure split_analysis has the correct number of answers
-    if (length(split_analysis) < 8) {
-      split_analysis <- c(split_analysis, rep("No Answer", 8 - length(split_analysis)))
-    }
+    ## REMOVED -  Ensure split_analysis has the correct number of answers
+    ## No longer necessary due to JSON outputs
     
     # Append the answers to the results dataframe
+    ##Edited to reflect fewer columns and removed split_ from analysis, as results can be directly imported from response. 
     results <- add_row(
       results,
       Paper = citation,
-      Is_IV_overidentified = split_analysis[2],
-      Binary_IV_overidentified = ifelse(grepl("yes", split_analysis[2], ignore.case = TRUE), 1, 0),
-      Report_2SLS_Just_Identified = split_analysis[3],
-      Binary_2SLS_Just_Identified = ifelse(grepl("yes", split_analysis[3], ignore.case = TRUE), 1, 0),
-      Assortment_of_Controls = split_analysis[4],
-      Binary_Assortment_of_Controls = ifelse(grepl("yes", split_analysis[4], ignore.case = TRUE), 1, 0),
-      Increasing_Controls = split_analysis[5],
-      Binary_Increasing_Controls = ifelse(grepl("yes", split_analysis[5], ignore.case = TRUE), 1, 0),
-      Without_Controls = split_analysis[6],
-      Binary_Without_Controls = ifelse(grepl("yes", split_analysis[6], ignore.case = TRUE), 1, 0),
-      Exclusion_Condition_Discussed = split_analysis[7],
-      Binary_Exclusion_Condition = ifelse(grepl("yes", split_analysis[7], ignore.case = TRUE), 1, 0),
-      Endogeneity_of_Controls = split_analysis[8],
-      Binary_Endogeneity_of_Controls = ifelse(grepl("yes", split_analysis[8], ignore.case = TRUE), 1, 0)
+      Is_IV_overidentified = analysis[[1]],
+      Report_2SLS_Just_Identified = analysis[[2]],
+      Assortment_of_Controls = analysis[[3]],
+      Increasing_Controls = analysis[[4]],
+      Without_Controls = analysis[[5]],
+      Exclusion_Condition_Discussed = analysis[[6]],
+      Endogeneity_of_Controls = analysis[[7]],
     )
   }
   
